@@ -1,0 +1,23 @@
+# Terraform
+.terraform/
+*.tfstate
+*.tfstate.*
+crash.log
+crash.log.*
+override.tf
+override.tf.json
+_override.tf
+_override.tf.json
+.terraformrc
+terraform.rc
+
+# User-specific variables (Uncomment if you have local-only vars)
+# *.tfvars
+# *.tfvars.json
+
+# Logs
+*.log
+
+# OS files
+.DS_Store
+Thumbs.db
