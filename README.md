@@ -59,17 +59,33 @@ To create your cluster, simply use the run.sh script. You specify the target clo
 ../run.sh --cloud gcp --type spike --action apply
 ```
 
-What happens next?Terraform safely initializes in an isolated workspace.It builds the IAP firewall, GCS bucket, and Instance Group.The script waits 15 seconds for Google to boot the VM and locate its generated name.The script prints out the exact gcloud commands you need to connect.
+What happens next?
+* Terraform safely initializes in an isolated workspace.
+* It builds the IAP firewall, GCS bucket, and Instance Group.
+* The script waits 15 seconds for Google to boot the VM and locate its generated name.
+* The script prints out the exact gcloud commands you need to connect.
 
 ## 💻 Step 4: Working on Your Cluster
 
-Instead of using a standard IP address, you will use Google's secure IAP tunnel.To SSH into the machine:(Copy the exact command printed by the run.sh script)
+Instead of using a standard IP address, you will use Google's secure IAP tunnel.
+
+### ⚠️ Important: Application Binding
+For any web app or service (like Jupyter Lab) to be accessible via the IAP tunnel, it **MUST** listen on all network interfaces (**`0.0.0.0`**), not just `localhost` or `127.0.0.1`. 
+
+*   **Jupyter Lab Example:** `jupyter lab --ip=0.0.0.0 --port=8888 --no-browser`
+*   **Python HTTP Server Example:** `python3 -m http.server 8080 --bind 0.0.0.0`
+
+If your app is only listening on `localhost`, Google's IAP tunnel will fail with a `failed to connect to backend` error! ❌
+
+### 🚀 Connection Commands
+**To SSH into the machine**:
+(Copy the exact command printed by the `run.sh` script)
 
 ```bash
 gcloud compute ssh hpc-worker-abcd --tunnel-through-iap --zone=us-central1-c
 ```
 
-To access Jupyter Notebooks or Web Apps:If you start a service on port 8080 on the VM, you can securely tunnel it to your local machine:
+**To access Jupyter Notebooks or Web Apps**:If you start a service on port 8080 on the VM, you can securely tunnel it to your local machine:
 
 ```bash
 gcloud compute start-iap-tunnel hpc-worker-abcd 8080 --local-host-port=localhost:8888 --zone=us-central1-c
@@ -85,4 +101,4 @@ When your model is done training, don't leave the cluster running. Destroy it en
 ./run.sh --cloud gcp --type spike --action destroy
 ```
 
-Safety Note: This will destroy the Compute instances and the attached GCS Storage Bucket. Ensure you have downloaded any trained models to your local machine before running the destroy command!
+**Safety** Note: This will destroy the Compute instances and the attached GCS Storage Bucket. Ensure you have downloaded any trained models to your local machine before running the destroy command!
