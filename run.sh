@@ -65,6 +65,9 @@ discover_instance_and_print_summary() {
     local PROJECT_ID=$(terraform output -raw project_id 2>/dev/null)
     local BUCKET_NAME=$(terraform output -raw bucket_name 2>/dev/null)
     
+    # Extract allowed ports from terraform using the correct piping method
+    local ALLOWED_PORTS_RAW=$(echo "var.allowed_ports" | terraform console -var-file="$VAR_FILE_ABS" 2>/dev/null)
+    
     local INSTANCE_INFO=$(gcloud compute instances list --filter="name ~ hpc-node" --project="$PROJECT_ID" --format="csv[no-heading](name,zone)" 2>/dev/null | head -n 1)
     
     if [[ ! -z "$INSTANCE_INFO" ]]; then
@@ -81,12 +84,19 @@ discover_instance_and_print_summary() {
         echo ""
         echo "🚀 To SSH into your VM:"
         echo "   gcloud compute ssh $INSTANCE_NAME --tunnel-through-iap --project=$PROJECT_ID --zone=$INSTANCE_ZONE"
-        echo ""
-        echo "🌐 To Tunnel the Web App (Port 8080 -> Local 8080):"
-        echo "   gcloud compute start-iap-tunnel $INSTANCE_NAME 8080 --local-host-port=localhost:8080 --project=$PROJECT_ID --zone=$INSTANCE_ZONE"
-        echo ""
-        echo "📓 To Tunnel Jupyter Lab (Port 8888 -> Local 8888):"
-        echo "   gcloud compute start-iap-tunnel $INSTANCE_NAME 8888 --local-host-port=localhost:8888 --project=$PROJECT_ID --zone=$INSTANCE_ZONE"
+        
+        # Show tunnel commands for allowed ports (excluding port 22 which is for SSH)
+        if [[ ! -z "$ALLOWED_PORTS_RAW" ]]; then
+            # Clean the output (removes tolist, brackets, quotes, and whitespace)
+            local PORTS=$(echo "$ALLOWED_PORTS_RAW" | tr -d 'tolist()[]" ' | tr ',' '\n' | grep -v "^$")
+            for PORT in $PORTS; do
+                if [[ "$PORT" != "22" ]]; then
+                    echo ""
+                    echo "🌐 To Tunnel Port $PORT (Remote $PORT -> Local $PORT):"
+                    echo "   gcloud compute start-iap-tunnel $INSTANCE_NAME $PORT --local-host-port=localhost:$PORT --project=$PROJECT_ID --zone=$INSTANCE_ZONE"
+                fi
+            done
+        fi
         echo "--------------------------------------------------------------------------------"
     fi
 }
