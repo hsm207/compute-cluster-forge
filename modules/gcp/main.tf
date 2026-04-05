@@ -59,14 +59,14 @@ resource "google_compute_firewall" "allow_iap" {
   }
 
   source_ranges = ["35.235.240.0/20"] # Google's IAP range for TCP forwarding
-  target_tags   = ["hpc-node"]
+  target_tags   = [var.instance_tag]
 }
 
 # 4. Instance Template for Spot VM Cluster
 resource "google_compute_instance_template" "hpc_template" {
   name_prefix  = "hpc-worker-"
   machine_type = var.machine_type
-  tags         = ["hpc-node"]
+  tags         = [var.instance_tag]
 
   # Auto-healing and Spot instance pricing (80% savings!)
   scheduling {
@@ -131,7 +131,7 @@ resource "google_compute_instance_template" "hpc_template" {
 resource "google_compute_region_instance_group_manager" "hpc_group" {
   name               = "hpc-manager"
   region             = var.region
-  base_instance_name = "hpc-node"
+  base_instance_name = var.instance_name_prefix
   target_size        = var.instance_count
   distribution_policy_zones = local.supported_zones
   distribution_policy_target_shape = "ANY"
