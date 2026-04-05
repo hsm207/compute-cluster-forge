@@ -3,6 +3,27 @@ provider "google" {
   region  = var.region
 }
 
+# --- Dynamic Hardware Discovery ---
+data "google_compute_zones" "available" {
+  region  = var.region
+  project = var.project_id
+}
+
+data "google_compute_machine_types" "available" {
+  for_each = toset(data.google_compute_zones.available.names)
+  zone     = each.key
+  project  = var.project_id
+  filter   = "name = \"${var.machine_type}\""
+}
+
+locals {
+  supported_zones = [
+    for z in data.google_compute_zones.available.names :
+    z if length(data.google_compute_machine_types.available[z].machine_types) > 0
+  ]
+}
+# ----------------------------------
+
 # 1. Random ID suffix for globally unique bucket names
 resource "random_id" "suffix" {
   byte_length = 4
@@ -37,11 +58,12 @@ resource "google_compute_instance_template" "hpc_template" {
   machine_type = var.machine_type
   tags         = ["hpc-node"]
 
-  # Auto-healing and Spot instance pricing (80% cheaper!)
+  # Auto-healing and Spot instance pricing (80% savings!)
   scheduling {
-    preemptible        = true
-    provisioning_model = "SPOT"
-    automatic_restart  = false
+    preemptible         = true
+    provisioning_model  = "SPOT"
+    automatic_restart   = false
+    on_host_maintenance = "TERMINATE" # Required for GPUs and Spot VMs
   }
 
   disk {
@@ -58,15 +80,18 @@ resource "google_compute_instance_template" "hpc_template" {
     }
   }
 
-  metadata = {
-    # Secure key management via Google Identity
-    enable-oslogin = "TRUE"
+  metadata = merge(
+    {
+      # Secure key management via Google Identity
+      enable-oslogin = "TRUE"
 
-    # Declarative software setup via cloud-init
-    user-data = templatefile("${path.module}/cloud-init.yaml", {
-      bucket_name = google_storage_bucket.hpc_storage.name
-    })
-  }
+      # Declarative software setup via cloud-init
+      user-data = templatefile("${path.module}/cloud-init.yaml", {
+        bucket_name = google_storage_bucket.hpc_storage.name
+      })
+    },
+    var.gpu_count > 0 ? { "install-nvidia-driver" = "True" } : {}
+  )
 
   # GPU attachment if requested
   dynamic "guest_accelerator" {
@@ -94,9 +119,18 @@ resource "google_compute_region_instance_group_manager" "hpc_group" {
   region             = var.region
   base_instance_name = "hpc-node"
   target_size        = var.instance_count
+  distribution_policy_zones = local.supported_zones
+  distribution_policy_target_shape = "ANY"
 
   version {
     instance_template = google_compute_instance_template.hpc_template.id
+  }
+
+  update_policy {
+    type                  = "PROACTIVE"
+    minimal_action        = "REPLACE"
+    max_surge_fixed       = 0
+    max_unavailable_fixed = length(local.supported_zones)
   }
 
   # Ensure the health of the instances in the cluster
