@@ -62,3 +62,15 @@ variable "bucket_name_prefix" {
   type        = string
   default     = "hpc-data"
 }
+
+variable "instance_name_prefix" {
+  description = "Base name for created GCP instances in the managed instance group."
+  type        = string
+  default     = "hpc-node"
+}
+
+variable "instance_tag" {
+  description = "Network tag applied to the HPC instances and firewall rules."
+  type        = string
+  default     = "hpc-node"
+}
