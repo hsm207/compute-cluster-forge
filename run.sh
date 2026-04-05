@@ -20,6 +20,10 @@ get_gcp_user_prefix() {
     echo "$RAW_EMAIL" | tr '@.' '__'
 }
 
+get_instance_name_prefix() {
+    terraform output -raw instance_name_prefix 2>/dev/null || echo "hpc-node"
+}
+
 parse_arguments() {
     while [[ "$#" -gt 0 ]]; do
         case $1 in
@@ -88,6 +92,7 @@ execute_terraform_action() {
 inject_windows_ssh_config() {
     local PROJ_ID="$1"
     local ZONE="$2"
+    local INSTANCE_PREFIX="$3"
     
     # Only run this block if the user is executing the script inside Windows Subsystem for Linux (WSL)
     if grep -qi microsoft /proc/version 2>/dev/null; then
@@ -106,14 +111,16 @@ inject_windows_ssh_config() {
         pwsh.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "$PS_SCRIPT_WIN_PATH" \
             -ProjectId "$PROJ_ID" \
             -Zone "$ZONE" \
-            -GcpUser "$GCP_USER" < /dev/null
+            -GcpUser "$GCP_USER" \
+            -InstancePrefix "$INSTANCE_PREFIX" < /dev/null
     fi
 }
 
 discover_instance_and_print_summary() {
     local PROJECT_ID=$(terraform output -raw project_id 2>/dev/null)
     local BUCKET_NAME=$(terraform output -raw bucket_name 2>/dev/null)
-    
+    local INSTANCE_PREFIX=$(get_instance_name_prefix)
+
     # Use the same resolved args for the console call
     local ALLOWED_PORTS_RAW=$(echo "var.allowed_ports" | terraform console "${FINAL_VAR_ARGS[@]}" 2>/dev/null)
     local REGION=$(echo "var.region" | terraform console "${FINAL_VAR_ARGS[@]}" 2>/dev/null | tr -d '"')
@@ -122,7 +129,7 @@ discover_instance_and_print_summary() {
     echo "⏳ Waiting for Instance Group Manager to finish deploying new VMs... (this may take a few minutes)"
     gcloud compute instance-groups managed wait-until hpc-manager --version-target-reached --region="$REGION" --project="$PROJECT_ID" --timeout=600 >/dev/null 2>&1
     
-    local INSTANCE_INFO=$(gcloud compute instances list --filter="name ~ hpc-node" --project="$PROJECT_ID" --format="csv[no-heading](name,zone)" 2>/dev/null | head -n 1)
+    local INSTANCE_INFO=$(gcloud compute instances list --filter="name ~ $INSTANCE_PREFIX" --project="$PROJECT_ID" --format="csv[no-heading](name,zone)" 2>/dev/null | head -n 1)
     
     if [[ ! -z "$INSTANCE_INFO" ]]; then
         local INSTANCE_NAME=$(echo "$INSTANCE_INFO" | cut -d',' -f1)
@@ -151,20 +158,21 @@ discover_instance_and_print_summary() {
             done
         fi
 
+        local HOST_PATTERN="${INSTANCE_PREFIX}-*"
         echo ""
         echo "💻 VS Code Remote-SSH Configuration (Linux/macOS Pattern):"
         echo "   Add this to your ~/.ssh/config for infinite scale:"
         echo ""
-        echo "   Host hpc-node-*"
+        echo "   Host $HOST_PATTERN"
         echo "       ProxyCommand gcloud compute start-iap-tunnel %h %p --listen-on-stdin --project=$PROJECT_ID --zone=$INSTANCE_ZONE"
         echo "       User $GCP_USER"
         echo ""
         echo "🔍 To find active node names for VS Code:"
-        echo "   gcloud compute instances list --filter=\"name ~ hpc-node\" --format=\"value(name)\""
+        echo "   gcloud compute instances list --filter=\"name ~ $INSTANCE_PREFIX\" --format=\"value(name)\""
         echo "--------------------------------------------------------------------------------"
         
         # Cross-OS injection execution
-        inject_windows_ssh_config "$PROJECT_ID" "$INSTANCE_ZONE"
+        inject_windows_ssh_config "$PROJECT_ID" "$INSTANCE_ZONE" "$INSTANCE_PREFIX"
     fi
 }
 
