@@ -6,7 +6,10 @@ param (
     [string]$Zone,
 
     [Parameter(Mandatory=$true)]
-    [string]$GcpUser
+    [string]$GcpUser,
+
+    [Parameter(Mandatory=$true)]
+    [string]$InstancePrefix
 )
 
 $ErrorActionPreference = "Stop"
@@ -28,15 +31,17 @@ if (-not (Test-Path $sshDir)) {
 $identityFile = "$sshDir\google_compute_engine" -replace '\\', '/'
 Write-Host "🔑 Identity File: $identityFile"
 
+$hostMatcher = "Host $InstancePrefix-*"
+
 # Idempotency check: Don't duplicate the block if it already exists
-if ((Test-Path $configFile) -and (Select-String -Path $configFile -Pattern 'Host hpc-node-*' -SimpleMatch -Quiet)) {
-    Write-Host "✅ Windows SSH config already contains hpc-node-*. Skipping injection."
+if ((Test-Path $configFile) -and (Select-String -Path $configFile -Pattern $hostMatcher -SimpleMatch -Quiet)) {
+    Write-Host "✅ Windows SSH config already contains $hostMatcher. Skipping injection."
 } else {
     Write-Host "✍️  Injecting new config block..."
     # Construct the multi-line config block
     $configBlock = @"
 
-Host hpc-node-*
+$hostMatcher
     ProxyCommand gcloud.cmd compute start-iap-tunnel %h %p --listen-on-stdin --project=$ProjectId --zone=$Zone
     User $GcpUser
     IdentityFile $identityFile
