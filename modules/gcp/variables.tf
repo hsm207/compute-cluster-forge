@@ -51,8 +51,26 @@ variable "boot_image" {
   default     = "debian-cloud/debian-11"
 }
 
+variable "allowed_ports" {
+  description = "List of TCP ports to allow via the IAP firewall."
+  type        = list(string)
+  default     = ["22", "8888"]
+}
+
 variable "bucket_name_prefix" {
   description = "Prefix for the GCS bucket used for data persistence."
   type        = string
   default     = "hpc-data"
+}
+
+variable "instance_name_prefix" {
+  description = "Base name for created GCP instances in the managed instance group."
+  type        = string
+  default     = "hpc-node"
+}
+
+variable "instance_tag" {
+  description = "Network tag applied to the HPC instances and firewall rules."
+  type        = string
+  default     = "hpc-node"
 }

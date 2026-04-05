@@ -1,88 +1,108 @@
 # 🛠️ Compute Cluster Forge
 
-Welcome to Compute Cluster Forge! This tool allows you to spin up highly secure, auto-healing, and cost-effective AI/ML compute clusters on demand.Currently, this project is configured for Google Cloud Platform (GCP), but the repository is architected to easily expand to AWS and Azure.
+**Compute Cluster Forge** is a modular infrastructure-as-code (IaC) framework that leverages **Terraform** to provision secure, auto-healing, and cost-optimized AI/ML compute clusters. While currently configured for **Google Cloud Platform (GCP)**, the architecture is designed for seamless extension to AWS and Azure.
 
-# 🌟 Features
+---
 
-This isn't a standard, brittle Terraform script. It implements industry-standard DevOps practices:
+## 🌟 Core Architectural Principles
 
-1. Zero-Trust Security (Google IAP): Instead of messing with public IPs or VPNs, this uses Google Identity-Aware Proxy. The firewall blocks all public traffic and only allows SSH connections tunneled through Google's secure OAuth servers. You can connect securely from a coffee shop, office, or home without changing configs.
+This implementation adheres to industry-standard DevOps practices, moving beyond static scripting toward a dynamic, policy-driven infrastructure:
 
-2. Auto-Healing Spot Instances: By using an Instance Group Manager, we use Google's cheapest Spot VMs (saving up to 80%). If Google reclaims the VM, the Manager automatically spins up a replacement to resume your workload.
+*   🔒 **Zero-Trust Security (Google IAP):** Implements a strict security model where all public ingress is disabled. Management access (SSH/Web) is limited to authorized users via Google Identity-Aware Proxy (IAP) TCP forwarding.
+*   🩹 **Auto-Healing Spot VM Orchestration:** Leverages Google's cost-effective Spot instances (saving up to 80%) while utilizing Managed Instance Groups (MIGs) to provide automated health-checking and self-healing.
+*   🗺️ **Dynamic Infrastructure Discovery:** Implements automated resource discovery. The system queries regional metadata to identify zones supporting specific hardware requirements (e.g., NVIDIA L4 GPUs) and restricts deployment to compatible areas.
+*   🥞 **Modular Layered Configuration:** Utilizes a decoupled configuration model where base environment templates are combined with specific hardware layers at runtime via an orchestrated CLI.
+*   ⚙️ **Contextual Metadata Injection:** Resource metadata is dynamically modified based on the requested hardware profile (e.g., automated NVIDIA driver installation is only injected for GPU-enabled nodes).
+*   🔄 **Stateful Data Persistence:** Provisions dedicated Google Cloud Storage (GCS) buckets for persistent model and dataset synchronization across cluster lifecycles.
 
-3. Decoupled Software Setup (Cloud-Init): Infrastructure is kept clean in .tf files, while software installations (Git, Python, CUDA drivers) are handled by a declarative cloud-init.yaml file on boot.
+---
 
-4. Persistent Data Sync: A dedicated Google Cloud Storage (GCS) bucket is spun up alongside your cluster. The VM is granted an IAM Service Account allowing it to automatically pull your latest scripts and data from this bucket when it boots.
+## 📂 Repository Structure
 
-# 📂 Repository Structure
-```
+```text
 /compute-cluster-forge
-├── /modules                # The "How" (Cloud-specific Infrastructure)
-│   ├── /aws                # Placeholder for AWS expansion
-│   ├── /azure              # Placeholder for Azure expansion
-│   └── /gcp                # Active GCP setup
-│       ├── main.tf         # Core logic (Instance Groups, Firewalls)
-│       ├── variables.tf    # Accepted inputs
-│       ├── outputs.tf      # Console outputs
-│       └── cloud-init.yaml # Server software setup script
-├── run.sh                  # The execution wrapper script
-└── /templates              # The "What" (Cluster configurations)
-    ├── training.tfvars     # High CPU/GPU configuration
-    ├── inference.tfvars    # Low latency configuration
-    └── spike.tfvars        # Cheap, burst CPU configuration
+├── /modules                # Infrastructure-as-Code (IaC) Modules
+│   ├── /aws                # [Planned] AWS Provider Module
+│   ├── /azure              # [Planned] Azure Provider Module
+│   └── /gcp                # Active GCP Provider Module
+│       ├── main.tf         # Resource Orchestration (MIG, Firewalls, APIs)
+│       ├── variables.tf    # Input Schema & Secure Defaults
+│       ├── outputs.tf      # Validated Resource References
+│       └── startup-script.sh # Native Bootstrapping Logic
+├── run.sh                  # CLI Orchestration & Execution Wrapper
+└── /templates              # Environment & Hardware Profiles
+    ├── training.tfvars     # High-compute Base Profile
+    ├── inference.tfvars    # Low-latency Base Profile
+    ├── spike.tfvars        # General-purpose Burst Profile
+    └── gpu-l4.tfvars       # Hardware Layer: NVIDIA L4 GPU / G2 Family
 ```
+
+---
+
 ## 🛠️ Step 1: Prerequisites
 
-Before you forge your first cluster, you need two standard tools installed on your local machine:
+Ensure the following toolchains are available in your environment:
+1.  **Terraform** (v1.0+)
+2.  **Google Cloud CLI (`gcloud`)**
+3.  **PowerShell 7+ (`pwsh`)** *(Windows/WSL users only. Required for the orchestrator to automatically bridge WSL and natively configure your Windows VS Code Remote-SSH profiles).*
 
-1. Install Terraform
-2. Install Google Cloud CLI (gcloud)
-
-Once installed, link your local machine to your Google Cloud Billing Account by running this in your terminal:
+Authenticate your local machine to generate Application Default Credentials (ADC):
 ```bash
 gcloud auth application-default login
 ```
-(This will pop open a web browser for you to log into your Google Account).
 
-## ⚙️ Step 2: Configuration
+---
 
-1. Open `/templates/training.tfvars` (or `spike.tfvars`).
+## 🚀 Step 2: Provisioning Your Cluster
 
-2. Replace `your-gcp-project-id` with your actual Google Cloud Project ID.
+Utilize the `run.sh` orchestrator to provision clusters. The interface supports combining environment templates with hardware layers and runtime variable overrides.
 
-3. (Optional) Tweak the `machine_type` or `gpu_count` depending on how much horsepower you need for this specific run.
-
-## 🚀 Step 3: Spin Up Your Cluster
-
-To create your cluster, simply use the run.sh script. You specify the target cloud (--cloud gcp) and the template flavor you want to use (--type spike):
+**Example: Provisioning a Spot Cluster with NVIDIA L4 Acceleration:**
 ```bash
-../run.sh --cloud gcp --type spike --action apply
+./run.sh --cloud gcp --type spike --layer gpu-l4 --var project_id=[PROJECT_ID] --action apply
 ```
 
-What happens next?Terraform safely initializes in an isolated workspace.It builds the IAP firewall, GCS bucket, and Instance Group.The script waits 15 seconds for Google to boot the VM and locate its generated name.The script prints out the exact gcloud commands you need to connect.
+**What happens behind the scenes?**
+1.  **Isolation:** Terraform initializes within an isolated workspace.
+2.  **Discovery:** Executes dynamic zone discovery based on hardware requirements.
+3.  **Provisioning:** Deploys IAM policies, networking, storage, and compute resources.
+4.  **Verification:** Automated status verification monitors the Instance Group until version targets are reached and health checks pass.
+5.  **Reporting:** Generates instance-specific connection strings for secure access.
 
-## 💻 Step 4: Working on Your Cluster
+---
 
-Instead of using a standard IP address, you will use Google's secure IAP tunnel.To SSH into the machine:(Copy the exact command printed by the run.sh script)
+## 💻 Step 3: Cluster Interaction
 
+Internal services must be accessed through the established IAP tunnel.
+
+### ⚠️ Important: Network Binding Requirement
+To ensure accessibility via IAP TCP forwarding, all applications (e.g., Jupyter Lab, Tensorboard) **MUST** bind to **`0.0.0.0`**. Applications listening exclusively on `127.0.0.1` will be unreachable.
+
+*   ✅ **Jupyter Lab:** `jupyter lab --ip=0.0.0.0 --port=8888 --no-browser`
+*   ✅ **HTTP Server:** `python3 -m http.server 8080 --bind 0.0.0.0`
+
+### 🌐 Connection Reference
+
+Once the cluster is live, `run.sh` provides dynamically resolved connection commands:
+
+**Secure SSH Access:**
 ```bash
-gcloud compute ssh hpc-worker-abcd --tunnel-through-iap --zone=us-central1-c
+gcloud compute ssh [INSTANCE_NAME] --tunnel-through-iap --project=[PROJECT_ID] --zone=[ZONE]
 ```
 
-To access Jupyter Notebooks or Web Apps:If you start a service on port 8080 on the VM, you can securely tunnel it to your local machine:
-
+**IAP Port Forwarding (Remote 8888 ➔ Local 8888):**
 ```bash
-gcloud compute start-iap-tunnel hpc-worker-abcd 8080 --local-host-port=localhost:8888 --zone=us-central1-c
+gcloud compute start-iap-tunnel [INSTANCE_NAME] 8888 --local-host-port=localhost:8888 --project=[PROJECT_ID] --zone=[ZONE]
 ```
 
-Then just open http://localhost:8888 in your laptop's web browser!
+---
 
-## 🔥 Step 5: Tear Down (Stop the Billing!)
+## 🔥 Step 4: Resource Decommissioning
 
-When your model is done training, don't leave the cluster running. Destroy it entirely with one command:
+To prevent unnecessary billing, decommission all provisioned resources upon task completion:
 
 ```bash
-./run.sh --cloud gcp --type spike --action destroy
+./run.sh --cloud gcp --type spike --layer gpu-l4 --var project_id=[PROJECT_ID] --action destroy
 ```
 
-Safety Note: This will destroy the Compute instances and the attached GCS Storage Bucket. Ensure you have downloaded any trained models to your local machine before running the destroy command!
+> **🛑 Safety Note:** This operation performs a forceful deletion of all regional resources, including the stateful GCS bucket. Ensure all datasets and trained models are synchronized to local storage prior to execution.
