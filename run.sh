@@ -102,7 +102,7 @@ inject_windows_ssh_config() {
         local GCP_USER=$(get_gcp_user_prefix)
 
         # 1. Resolve the absolute Linux path of the script using the global REPO_ROOT
-        local SCRIPT_PATH_LINUX="$REPO_ROOT/modules/gcp/inject-ssh-config.ps1"
+        local SCRIPT_PATH_LINUX="$REPO_ROOT/modules/gcp/scripts/inject-ssh-config.ps1"
         
         # 2. Safely translate the Linux absolute path into an absolute Windows path
         local PS_SCRIPT_WIN_PATH=$(wslpath -w "$SCRIPT_PATH_LINUX")
