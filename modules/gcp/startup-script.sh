@@ -5,9 +5,9 @@ exec > >(tee -a /var/log/startup-script.log | logger -t startup-script -s 2>/dev
 
 echo "🚀 Starting Compute Cluster Forge native software setup..."
 
-echo "📦 Installing essential packages..."
+echo "📦 Installing required system libraries..."
 apt-get update
-apt-get install -y git python3-pip htop curl libsecret-1-0
+apt-get install -y libsecret-1-0
 
 echo "🟩 Checking Node.js installation..."
 if command -v node >/dev/null 2>&1; then
