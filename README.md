@@ -44,6 +44,7 @@ This implementation adheres to industry-standard DevOps practices, moving beyond
 Ensure the following toolchains are available in your environment:
 1.  **Terraform** (v1.0+)
 2.  **Google Cloud CLI (`gcloud`)**
+3.  **PowerShell 7+ (`pwsh`)** *(Windows/WSL users only. Required for the orchestrator to automatically bridge WSL and natively configure your Windows VS Code Remote-SSH profiles).*
 
 Authenticate your local machine to generate Application Default Credentials (ADC):
 ```bash
