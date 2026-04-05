@@ -3,6 +3,16 @@ provider "google" {
   region  = var.region
 }
 
+# --- Project Services ---
+# Enables the services needed for Gemini CLI
+resource "google_project_service" "gemini_api" {
+  project = var.project_id
+  service = "cloudaicompanion.googleapis.com"
+
+  # Keep it enabled even if we destroy the VM to avoid annoying propagation delays
+  disable_on_destroy = false
+}
+
 # --- Dynamic Hardware Discovery ---
 data "google_compute_zones" "available" {
   region  = var.region
@@ -107,11 +117,15 @@ resource "google_compute_instance_template" "hpc_template" {
     scopes = ["cloud-platform"]
   }
 
-  # Ensure the template is always replaced when cloud-init changes
+  # Ensure the template is always replaced when startup-script changes
   lifecycle {
     create_before_destroy = true
   }
+
+  # Don't boot the VM until the Gemini API is ready
+  depends_on = [google_project_service.gemini_api]
 }
+
 
 # 5. Managed Instance Group for Auto-Healing Cluster Management
 resource "google_compute_region_instance_group_manager" "hpc_group" {
