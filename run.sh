@@ -1,5 +1,9 @@
 #!/bin/bash
 
+# --- Global Paths ---
+# Capture the absolute repository root BEFORE any 'cd' operations
+REPO_ROOT=$(cd "$(dirname "$0")" && pwd)
+
 # Default Configuration
 CLOUD="gcp"
 TYPE="spike"
@@ -7,6 +11,14 @@ ACTION="plan"
 LAYERS=()
 EXTRA_TF_VARS=()
 FINAL_VAR_ARGS=()
+
+# --- Utilities ---
+
+# Resolves the current GCP user account and formats it for Linux/SSH compatibility
+get_gcp_user_prefix() {
+    local RAW_EMAIL=$(gcloud config get-value account 2>/dev/null)
+    echo "$RAW_EMAIL" | tr '@.' '__'
+}
 
 parse_arguments() {
     while [[ "$#" -gt 0 ]]; do
@@ -73,6 +85,31 @@ execute_terraform_action() {
     fi
 }
 
+inject_windows_ssh_config() {
+    local PROJ_ID="$1"
+    local ZONE="$2"
+    
+    # Only run this block if the user is executing the script inside Windows Subsystem for Linux (WSL)
+    if grep -qi microsoft /proc/version 2>/dev/null; then
+        echo ""
+        echo "🔍 WSL Environment Detected. Delegating SSH config injection to Windows PowerShell (pwsh)..."
+
+        local GCP_USER=$(get_gcp_user_prefix)
+
+        # 1. Resolve the absolute Linux path of the script using the global REPO_ROOT
+        local SCRIPT_PATH_LINUX="$REPO_ROOT/modules/gcp/inject-ssh-config.ps1"
+        
+        # 2. Safely translate the Linux absolute path into an absolute Windows path
+        local PS_SCRIPT_WIN_PATH=$(wslpath -w "$SCRIPT_PATH_LINUX")
+
+        # 3. Execute pwsh.exe with the translated path and sever stdin (< /dev/null) to prevent hangs
+        pwsh.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "$PS_SCRIPT_WIN_PATH" \
+            -ProjectId "$PROJ_ID" \
+            -Zone "$ZONE" \
+            -GcpUser "$GCP_USER" < /dev/null
+    fi
+}
+
 discover_instance_and_print_summary() {
     local PROJECT_ID=$(terraform output -raw project_id 2>/dev/null)
     local BUCKET_NAME=$(terraform output -raw bucket_name 2>/dev/null)
@@ -90,6 +127,7 @@ discover_instance_and_print_summary() {
     if [[ ! -z "$INSTANCE_INFO" ]]; then
         local INSTANCE_NAME=$(echo "$INSTANCE_INFO" | cut -d',' -f1)
         local INSTANCE_ZONE=$(echo "$INSTANCE_INFO" | cut -d',' -f2)
+        local GCP_USER=$(get_gcp_user_prefix)
 
         echo ""
         echo "--------------------------------------------------------------------------------"
@@ -112,7 +150,21 @@ discover_instance_and_print_summary() {
                 fi
             done
         fi
+
+        echo ""
+        echo "💻 VS Code Remote-SSH Configuration (Linux/macOS Pattern):"
+        echo "   Add this to your ~/.ssh/config for infinite scale:"
+        echo ""
+        echo "   Host hpc-node-*"
+        echo "       ProxyCommand gcloud compute start-iap-tunnel %h %p --listen-on-stdin --project=$PROJECT_ID --zone=$INSTANCE_ZONE"
+        echo "       User $GCP_USER"
+        echo ""
+        echo "🔍 To find active node names for VS Code:"
+        echo "   gcloud compute instances list --filter=\"name ~ hpc-node\" --format=\"value(name)\""
         echo "--------------------------------------------------------------------------------"
+        
+        # Cross-OS injection execution
+        inject_windows_ssh_config "$PROJECT_ID" "$INSTANCE_ZONE"
     fi
 }
 
