@@ -1,6 +1,6 @@
 # 🛠️ Compute Cluster Forge
 
-**Compute Cluster Forge** is a modular infrastructure-as-code (IaC) framework for provisioning secure, auto-healing, and cost-optimized AI/ML compute clusters. While currently configured for **Google Cloud Platform (GCP)**, the architecture is designed for seamless extension to AWS and Azure.
+**Compute Cluster Forge** is a modular infrastructure-as-code (IaC) framework that leverages **Terraform** to provision secure, auto-healing, and cost-optimized AI/ML compute clusters. While currently configured for **Google Cloud Platform (GCP)**, the architecture is designed for seamless extension to AWS and Azure.
 
 ---
 
