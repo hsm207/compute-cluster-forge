@@ -85,8 +85,8 @@ resource "google_compute_instance_template" "hpc_template" {
       # Secure key management via Google Identity
       enable-oslogin = "TRUE"
 
-      # Declarative software setup via cloud-init
-      user-data = templatefile("${path.module}/cloud-init.yaml", {
+      # Declarative software setup via native GCP startup script
+      startup-script = templatefile("${path.module}/startup-script.sh", {
         bucket_name = google_storage_bucket.hpc_storage.name
       })
     },
