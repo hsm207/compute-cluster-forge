@@ -80,12 +80,12 @@ execute_terraform_action() {
     echo "--------------------------------------------------------------------------------"
 
     if [[ "$ACTION" == "plan" || "$ACTION" == "apply" || "$ACTION" == "destroy" || "$ACTION" == "import" || "$ACTION" == "refresh" ]]; then
-        local EXTRA_ARGS=()
+        local EXTRA_ARGS=("-input=false")
         [[ "$ACTION" == "apply" || "$ACTION" == "destroy" ]] && EXTRA_ARGS+=("-auto-approve")
         
         terraform "$ACTION" "${FINAL_VAR_ARGS[@]}" "${EXTRA_ARGS[@]}"
     else
-        terraform "$ACTION"
+        terraform "$ACTION" -input=false
     fi
 }
 
