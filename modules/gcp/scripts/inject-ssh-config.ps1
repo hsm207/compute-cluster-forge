@@ -86,6 +86,8 @@ Host $InstancePrefix-*
     User $GcpUser
     IdentityFile $IdentityFile
     RequestTTY force
+    StrictHostKeyChecking no
+    UserKnownHostsFile /dev/null
 "@
 
     Add-Content -Path $configFile -Value $configBlock
