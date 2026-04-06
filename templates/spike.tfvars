@@ -1,5 +1,5 @@
 # Configuration for cheap, burst CPU testing (Spike Template)
-region         = "us-central1"
+region         = "us-west1"
 machine_type   = "e2-medium"
 instance_count = 1
 boot_disk_size = 100

@@ -1,5 +1,5 @@
 # High-performance training configuration
-region         = "us-central1"
+region         = "us-west1"
 machine_type   = "c2-standard-4"
 instance_count = 1
 boot_disk_size = 100
