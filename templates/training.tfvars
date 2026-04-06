@@ -1,5 +1,4 @@
 # High-performance training configuration
-project_id     = "[YOUR_PROJECT_ID]"
 region         = "us-central1"
 machine_type   = "c2-standard-4"
 instance_count = 1

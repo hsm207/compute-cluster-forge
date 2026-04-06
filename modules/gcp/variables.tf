@@ -1,6 +1,16 @@
 variable "project_id" {
   description = "The GCP Project ID where the cluster will be forged."
   type        = string
+
+  validation {
+    # Enforces GCP Project ID naming conventions:
+    # 1. 6-30 characters long
+    # 2. Starts with a lowercase letter
+    # 3. Contains only lowercase letters, numbers, and hyphens
+    # 4. Ends with a lowercase letter or number
+    condition     = can(regex("^[a-z][a-z0-9-]{4,28}[a-z0-9]$", var.project_id))
+    error_message = "The project_id must be a valid GCP Project ID (6-30 chars, lowercase letters, numbers, and hyphens only)."
+  }
 }
 
 variable "region" {

@@ -69,6 +69,23 @@ Utilize the `run.sh` orchestrator to provision clusters. The interface supports 
 4.  **Verification:** Automated status verification monitors the Instance Group until version targets are reached and health checks pass.
 5.  **Reporting:** Generates instance-specific connection strings for secure access.
 
+### 🆔 Configuring Project Identity
+
+You must provide the project id at runtime using one of the following methods:
+
+#### Method A: Environment Variable
+Set the standard Terraform environment variable to automatically inject the project id into all forge commands within your current shell session:
+```bash
+export TF_VAR_project_id="your-gcp-project-id"
+./run.sh --cloud gcp --type spike --action apply
+```
+
+#### Method B: CLI Override
+Pass the project id directly using the `--var` flag:
+```bash
+./run.sh --cloud gcp --type spike --var project_id="your-gcp-project-id" --action apply
+```
+
 ---
 
 ## 💻 Step 3: Cluster Interaction

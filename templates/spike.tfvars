@@ -1,5 +1,4 @@
 # Configuration for cheap, burst CPU testing (Spike Template)
-project_id     = "[YOUR_PROJECT_ID]"
 region         = "us-central1"
 machine_type   = "e2-medium"
 instance_count = 1
