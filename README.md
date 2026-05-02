@@ -9,11 +9,11 @@
 This implementation adheres to industry-standard DevOps practices, moving beyond static scripting toward a dynamic, policy-driven infrastructure:
 
 *   🔒 **Zero-Trust Security (Google IAP):** Implements a strict security model where all public ingress is disabled. Management access (SSH/Web) is limited to authorized users via Google Identity-Aware Proxy (IAP) TCP forwarding.
-*   🩹 **Auto-Healing Spot VM Orchestration:** Leverages Google's cost-effective Spot instances (saving up to 80%) while utilizing Managed Instance Groups (MIGs) to provide automated health-checking and self-healing.
-*   🗺️ **Dynamic Infrastructure Discovery:** Implements automated resource discovery. The system queries regional metadata to identify zones supporting specific hardware requirements (e.g., NVIDIA L4 GPUs) and restricts deployment to compatible areas.
-*   🥞 **Modular Layered Configuration:** Utilizes a decoupled configuration model where base environment templates are combined with specific hardware layers at runtime via an orchestrated CLI.
-*   ⚙️ **Contextual Metadata Injection:** Resource metadata is dynamically modified based on the requested hardware profile (e.g., automated NVIDIA driver installation is only injected for GPU-enabled nodes).
-*   🔄 **Stateful Data Persistence:** Provisions dedicated Google Cloud Storage (GCS) buckets for persistent model and dataset synchronization across cluster lifecycles.
+*   🥷 **Proactive Instance Remediation:** Implements specialized recovery logic in the health probe to detect `ZONE_RESOURCE_POOL_EXHAUSTED` errors. The system automatically purges failing instances and forces the MIG to 'hop' to alternative zones within the region to find available hardware capacity.
+*   🩹 **Auto-Healing Spot VM Orchestration:** Leverages Google's cost-effective Spot instances while utilizing Managed Instance Groups (MIGs) with the `ANY` distribution shape and `allow_changing_zone` policy to provide automated cross-zone self-healing.
+*   🧠 **VRAM-Optimized AI Features:** Provides turn-key integration for LLM runners (Ollama) and pre-configured model tiers (Gemma4 26B, 31B, E2B). Models are surgically matched to hardware profiles (e.g., L4 GPUs) to ensure 100% VRAM offloading and near-instantaneous inference.
+*   🗺️ **Dynamic Infrastructure Discovery:** Implements automated resource discovery. The system queries regional metadata to identify zones supporting specific hardware requirements and restricts deployment to compatible areas.
+*   💻 **Cross-OS SSH Orchestration:** Includes an automated PowerShell bridge that natively configures Windows VS Code Remote-SSH profiles with secure IAP ProxyCommands, ensuring seamless connectivity regardless of zone-hopping events.
 
 ---
 
@@ -57,17 +57,18 @@ gcloud auth application-default login
 
 Utilize the `run.sh` orchestrator to provision clusters. The interface supports combining environment templates with hardware layers and runtime variable overrides.
 
-**Example: Provisioning a Spot Cluster with NVIDIA L4 Acceleration:**
+**Example: Provisioning an AI-Ready Cluster with NVIDIA L4 & Gemma4-26B:**
 ```bash
-./run.sh --cloud gcp --type spike --layer gpu-l4 --var project_id=[PROJECT_ID] --action apply
+./run.sh --cloud gcp --type spike --layer gpu-l4 --feature ollama --feature gemma4-26b --var project_id=[PROJECT_ID] --action apply
 ```
 
 **What happens behind the scenes?**
 1.  **Isolation:** Terraform initializes within an isolated workspace.
 2.  **Discovery:** Executes dynamic zone discovery based on hardware requirements.
 3.  **Provisioning:** Deploys IAM policies, networking, storage, and compute resources.
-4.  **Verification:** Automated status verification monitors the Instance Group until version targets are reached and health checks pass.
-5.  **Reporting:** Generates instance-specific connection strings for secure access.
+4.  **Feature Injection:** Dynamically generates startup scripts to install requested software (e.g., Ollama runner) and pull VRAM-optimized models.
+5.  **Verification:** Automated status verification monitors the Instance Group until version targets are reached, health checks pass, and features are initialized.
+6.  **Reporting:** Generates instance-specific connection strings for secure access.
 
 ### 🆔 Configuring Project Identity
 
@@ -111,6 +112,9 @@ gcloud compute ssh [INSTANCE_NAME] --tunnel-through-iap --project=[PROJECT_ID] -
 ```bash
 gcloud compute start-iap-tunnel [INSTANCE_NAME] 8888 --local-host-port=localhost:8888 --project=[PROJECT_ID] --zone=[ZONE]
 ```
+
+#### 🔄 Note on Zone-Hopping & SSH Persistence
+Because the architecture utilizes **Proactive Instance Remediation**, an instance may be recreated in a different zone if the original zone experiences resource exhaustion. Since the VS Code `ProxyCommand` is zone-dependent, a "Zone-Hop" will cause existing SSH config entries to become obsolete. To restore connectivity, simply re-run the `apply` command (or the automated PowerShell bridge) to surgically update your local `.ssh/config` with the new instance location.
 
 ---
 
