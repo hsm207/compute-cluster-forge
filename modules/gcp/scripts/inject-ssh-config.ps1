@@ -50,14 +50,15 @@ function Remove-OldHostBlock() {
 
     $newContent = @()
     $skipMode = $false
-    $hostPattern = "Host $InstancePrefix-*"
+    # Match any Host line starting with hpc-node (case insensitive)
+    $hostRegex = "^Host\s+$($InstancePrefix).*"
 
     foreach ($line in $fileContent) {
-        if ($line -eq $hostPattern) {
+        if ($line -match $hostRegex) {
             $skipMode = $true
-            Write-Host "🔄 Found existing entry. Removing old config block..."
-        } elseif ($skipMode -and ($line -match "^Host " -or ($line -notmatch "^\s"))) {
-            # Exit skip mode when we hit the next Host or line starting with non-whitespace
+            Write-Host "🔄 Found interfering entry [$($line.Trim())]. Removing old config block..."
+        } elseif ($skipMode -and ($line -match "^Host " -or ($line -notmatch "^\s") -and ($line.Trim().Length -gt 0))) {
+            # Exit skip mode when we hit the next Host or a new section
             $skipMode = $false
         }
 
@@ -66,9 +67,12 @@ function Remove-OldHostBlock() {
         }
     }
 
-    if ($newContent.Count -gt 0) {
-        Set-Content -Path $configFile -Value $newContent
+    # Clean up trailing empty lines
+    while ($newContent.Count -gt 0 -and [string]::IsNullOrWhiteSpace($newContent[-1])) {
+        $newContent = $newContent[0..($newContent.Count - 2)]
     }
+
+    Set-Content -Path $configFile -Value $newContent
 }
 
 function Add-NewHostBlock() {
