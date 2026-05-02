@@ -65,7 +65,19 @@ wait_for_readiness() {
     done
 
     # Final Failure Report
-    echo "❌ GCP Probe: Cluster failed to stabilize after $MAX_RETRIES attempts."
+    echo "❌ [ERROR] GCP Probe: Cluster failed to stabilize after $MAX_RETRIES attempts."
+    local INSTANCE_INFO_JSON=$(gcloud compute instance-groups managed list-instances "$MIG_NAME" --region="$REGION" --project="$PROJECT_ID" --format="json")
+    
+    echo "$INSTANCE_INFO_JSON" | jq -c '.[] | select(.instanceStatus != "RUNNING" or (.instanceHealth != null and .instanceHealth[0].detailedHealthState != "HEALTHY"))' | while read -r i; do
+        local NAME=$(echo "$i" | jq -r '.name // .instance | split("/") | last')
+        local STATUS=$(echo "$i" | jq -r '.instanceStatus // .currentAction')
+        local HEALTH=$(echo "$i" | jq -r '.instanceHealth[0].detailedHealthState // "N/A"')
+        local ERR_CODE=$(echo "$i" | jq -r '.lastAttempt.errors.errors[0].code // "UNKNOWN"')
+        local ERR_MSG=$(echo "$i" | jq -r '.lastAttempt.errors.errors[0].message // ""')
+        
+        echo "   - $NAME: Status=$STATUS, Health=$HEALTH"
+        echo "     🚨 Root Cause: [$ERR_CODE] $ERR_MSG"
+    done
     exit 1
 }
 
