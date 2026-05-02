@@ -13,11 +13,18 @@ variable "project_id" {
   }
 }
 
+variable "bucket_name_prefix" {
+  description = "Prefix for the GCS bucket name."
+  type        = string
+  default     = "hpc-data"
+}
+
 variable "region" {
-  description = "The GCP region to deploy the instance group."
+  description = "The GCP region to deploy resources to."
   type        = string
   default     = "us-central1"
 }
+
 
 variable "zone" {
   description = "The specific GCP zone for the instances."
@@ -67,12 +74,6 @@ variable "allowed_ports" {
   default     = ["22", "8888"]
 }
 
-variable "bucket_name_prefix" {
-  description = "Prefix for the GCS bucket used for data persistence."
-  type        = string
-  default     = "hpc-data"
-}
-
 variable "instance_name_prefix" {
   description = "Base name for created GCP instances in the managed instance group."
   type        = string
@@ -83,4 +84,16 @@ variable "instance_tag" {
   description = "Network tag applied to the HPC instances and firewall rules."
   type        = string
   default     = "hpc-node"
+}
+
+variable "active_features" {
+  description = "List of software features to enable (e.g., ['ollama', 'gemma4'])."
+  type        = list(string)
+  default     = []
+}
+
+variable "gcp_user" {
+  description = "The primary GCP user account for the cluster (used for home directories)."
+  type        = string
+  default     = "hpc-user"
 }

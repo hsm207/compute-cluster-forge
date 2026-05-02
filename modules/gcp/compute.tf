@@ -1,3 +1,29 @@
+locals {
+  feature_ports = {
+    "ollama" = ["11434"]
+  }
+
+  feature_scripts = [
+    for f in var.active_features :
+    templatefile("${path.module}/scripts/features/${f}.sh", {
+      bucket_name = google_storage_bucket.hpc_storage.name,
+      gcp_user    = var.gcp_user
+    })
+  ]
+
+  final_startup_script = join("\n\n# --- FEATURE LAYER SEPARATOR ---\n\n", concat(
+    [templatefile("${path.module}/scripts/startup-script.sh", {
+      bucket_name = google_storage_bucket.hpc_storage.name
+    })],
+    local.feature_scripts
+  ))
+
+  total_allowed_ports = distinct(concat(
+    var.allowed_ports,
+    flatten([for f in var.active_features : lookup(local.feature_ports, f, [])])
+  ))
+}
+
 # 4. Instance Template for Spot VM Cluster
 resource "google_compute_instance_template" "hpc_template" {
   name_prefix  = "hpc-worker-"
@@ -32,9 +58,7 @@ resource "google_compute_instance_template" "hpc_template" {
       enable-oslogin = "TRUE"
 
       # Declarative software setup via native GCP startup script
-      startup-script = templatefile("${path.module}/scripts/startup-script.sh", {
-        bucket_name = google_storage_bucket.hpc_storage.name
-      })
+      startup-script = local.final_startup_script
     },
     var.gpu_count > 0 ? { "install-nvidia-driver" = "True" } : {}
   )
