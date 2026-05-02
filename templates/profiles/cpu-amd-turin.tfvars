@@ -1,4 +1,4 @@
-# Next-Gen CPU Layer: AMD Turin (Zen 5) / Intel Emerald Rapids
+# Next-Gen CPU Layer: AMD Turin (Zen 5)
 # Optimized for high-performance CPU inference (100% Hyperdisk required)
 machine_type   = "n4d-standard-16"
 boot_image      = "click-to-deploy-images/common-cpu-v20250325-debian-11-py310"
