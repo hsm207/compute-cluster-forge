@@ -57,9 +57,15 @@ variable "instance_count" {
 }
 
 variable "boot_disk_size" {
-  description = "The size of the boot disk in GB."
+  description = "Size of the boot disk in GB."
   type        = number
-  default     = 100
+  default     = 50
+}
+
+variable "boot_disk_type" {
+  description = "Type of the boot disk (e.g., pd-standard, pd-balanced, pd-ssd)."
+  type        = string
+  default     = "pd-standard"
 }
 
 variable "boot_image" {

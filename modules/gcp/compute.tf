@@ -43,6 +43,7 @@ resource "google_compute_instance_template" "hpc_template" {
     auto_delete  = true
     boot         = true
     disk_size_gb = var.boot_disk_size
+    disk_type    = var.boot_disk_type
   }
 
   network_interface {
