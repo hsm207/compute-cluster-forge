@@ -7,7 +7,7 @@ echo "🚀 Starting Compute Cluster Forge native software setup..."
 
 echo "📦 Installing required system libraries..."
 apt-get update
-apt-get install -y libsecret-1-0
+apt-get install -y libsecret-1-0 zstd
 
 echo "🟩 Checking Node.js installation..."
 if command -v node >/dev/null 2>&1; then

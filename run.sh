@@ -9,6 +9,7 @@ CLOUD="gcp"
 TYPE="spike"
 ACTION="plan"
 LAYERS=()
+FEATURES=()
 EXTRA_TF_VARS=()
 FINAL_VAR_ARGS=()
 
@@ -31,6 +32,7 @@ parse_arguments() {
             --type) TYPE="$2"; shift ;;
             --action) ACTION="$2"; shift ;;
             --layer) LAYERS+=("$2"); shift ;;
+            --feature) FEATURES+=("$2"); shift ;;
             --var) EXTRA_TF_VARS+=("$2"); shift ;;
             *) echo "Unknown parameter passed: $1"; exit 1 ;;
         esac
@@ -40,26 +42,44 @@ parse_arguments() {
 
 map_cloud_to_module() {
     case $CLOUD in
-        gcp) MODULE_DIR="modules/gcp" ;;
+        gcp) 
+            MODULE_DIR="modules/gcp" 
+            source "$MODULE_DIR/scripts/probe.sh"
+            ;;
         *) echo "Cloud $CLOUD not supported yet! 🚀" >&2; exit 1 ;;
     esac
 }
 
 # Resolve all variable files (base + layers) and overrides BEFORE changing directories
 resolve_paths_and_vars() {
-    local BASE_VAR_FILE="templates/${TYPE}.tfvars"
+    local BASE_VAR_FILE="templates/profiles/${TYPE}.tfvars"
     if [[ -f "$BASE_VAR_FILE" ]]; then
         FINAL_VAR_ARGS+=("-var-file=$(readlink -f "$BASE_VAR_FILE")")
     fi
     
     for LAYER in "${LAYERS[@]}"; do
-        local LAYER_PATH="templates/${LAYER}.tfvars"
+        local LAYER_PATH="templates/profiles/${LAYER}.tfvars"
         if [[ ! -f "$LAYER_PATH" ]]; then
             echo "Error: Layer file $LAYER_PATH not found." >&2
             exit 1
         fi
         FINAL_VAR_ARGS+=("-var-file=$(readlink -f "$LAYER_PATH")")
     done
+
+    if [[ ${#FEATURES[@]} -gt 0 ]]; then
+        local FEATURE_JSON="["
+        for i in "${!FEATURES[@]}"; do
+            FEATURE_JSON+="\"${FEATURES[$i]}\""
+            if [[ $i -lt $((${#FEATURES[@]} - 1)) ]]; then
+                FEATURE_JSON+=", "
+            fi
+        done
+        FEATURE_JSON+="]"
+        FINAL_VAR_ARGS+=("-var" "active_features=$FEATURE_JSON")
+    fi
+
+    local GCP_USER=$(get_gcp_user_prefix)
+    FINAL_VAR_ARGS+=("-var" "gcp_user=$GCP_USER")
 
     for OVERRIDE in "${EXTRA_TF_VARS[@]}"; do
         FINAL_VAR_ARGS+=("-var" "$OVERRIDE")
@@ -74,9 +94,10 @@ initialize_workspace() {
 
 execute_terraform_action() {
     echo "--------------------------------------------------------------------------------"
-    echo "🛠️  Compute Cluster Forge: Executing $ACTION for $CLOUD ($TYPE)"
-    [[ ${#LAYERS[@]} -gt 0 ]] && echo "🥞 Layers applied: ${LAYERS[*]}"
-    [[ ${#EXTRA_TF_VARS[@]} -gt 0 ]] && echo "🎯 Manual overrides applied!"
+    echo "🛠️  [INFO] Executing $ACTION for $CLOUD ($TYPE)"
+    [[ ${#LAYERS[@]} -gt 0 ]] && echo "🥞 [INFO] Layers applied: ${LAYERS[*]}"
+    [[ ${#FEATURES[@]} -gt 0 ]] && echo "✨ [INFO] Features enabled: ${FEATURES[*]}"
+    [[ ${#EXTRA_TF_VARS[@]} -gt 0 ]] && echo "🎯 [INFO] Manual overrides detected."
     echo "--------------------------------------------------------------------------------"
 
     if [[ "$ACTION" == "plan" || "$ACTION" == "apply" || "$ACTION" == "destroy" || "$ACTION" == "import" || "$ACTION" == "refresh" ]]; then
@@ -127,7 +148,7 @@ discover_instance_and_print_summary() {
     
     echo ""
     echo "⏳ Waiting for Instance Group Manager to finish deploying new VMs... (this may take a few minutes)"
-    gcloud compute instance-groups managed wait-until hpc-manager --version-target-reached --region="$REGION" --project="$PROJECT_ID" --timeout=600 >/dev/null 2>&1
+    gcloud compute instance-groups managed wait-until hpc-manager --stable --region="$REGION" --project="$PROJECT_ID" --timeout=600 >/dev/null 2>&1
     
     local INSTANCE_INFO=$(gcloud compute instances list --filter="name ~ $INSTANCE_PREFIX" --project="$PROJECT_ID" --format="csv[no-heading](name,zone)" 2>/dev/null | head -n 1)
     
@@ -181,8 +202,18 @@ parse_arguments "$@"
 map_cloud_to_module
 resolve_paths_and_vars
 initialize_workspace
-execute_terraform_action
 
-if [[ "$?" -eq 0 && ("$ACTION" == "apply" || "$ACTION" == "refresh" || "$ACTION" == "plan") ]]; then
-    discover_instance_and_print_summary
+if execute_terraform_action; then
+    if [[ "$ACTION" == "apply" ]]; then
+        if wait_for_readiness; then
+            echo "✅ [SUCCESS] Cluster health check passed. Configuration details follow."
+            print_summary
+        else
+            echo "❌ [ERROR] Cluster deployment failed health check. Inspect serial logs for details."
+            exit 1
+        fi
+    fi
+else
+    echo "❌ [ERROR] Terraform action '$ACTION' failed."
+    exit 1
 fi

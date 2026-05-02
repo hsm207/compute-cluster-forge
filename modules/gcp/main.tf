@@ -3,6 +3,11 @@ provider "google" {
   region  = var.region
 }
 
+provider "google-beta" {
+  project = var.project_id
+  region  = var.region
+}
+
 # --- Dynamic Hardware Discovery ---
 data "google_compute_zones" "available" {
   region  = var.region

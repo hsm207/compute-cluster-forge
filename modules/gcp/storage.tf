@@ -5,7 +5,7 @@ resource "random_id" "suffix" {
 
 # 2. Storage Bucket for HPC Data Persistence
 resource "google_storage_bucket" "hpc_storage" {
-  name          = "${var.bucket_name_prefix}-${random_id.suffix.hex}"
+  name          = "${var.bucket_name_prefix}-${var.region}-${random_id.suffix.hex}"
   location      = var.region
   force_destroy = true
 
