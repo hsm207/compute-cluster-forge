@@ -22,3 +22,12 @@ terraform.rc
 # OS files
 .DS_Store
 Thumbs.db
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+
+# Local scratch
+scratch/
