@@ -16,3 +16,13 @@ def test_get_origin_url_non_git_directory() -> None:
     with tempfile.TemporaryDirectory() as tmp_dir:
         with pytest.raises(GitAdapterError, match="Directory is not a git repository"):
             get_origin_url(Path(tmp_dir))
+
+
+def test_get_git_author_identity() -> None:
+    from forge.adapters.git import get_git_author_identity
+
+    user_name, user_email = get_git_author_identity()
+    # Should return strings without throwing exceptions
+    assert isinstance(user_name, str)
+    assert isinstance(user_email, str)
+

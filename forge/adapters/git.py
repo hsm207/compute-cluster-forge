@@ -42,3 +42,27 @@ def get_origin_url(repo_dir: Path) -> str:
         raise GitAdapterError(
             f"Failed to get origin URL for {repo_dir.name}: {stderr_msg}"
         ) from exc
+
+
+def get_git_author_identity() -> tuple[str, str]:
+    """Retrieve global Git user.name and user.email from local environment.
+
+    Returns:
+        A tuple of (user_name, user_email). Falls back to empty strings if unset.
+    """
+    def _read_config(key: str) -> str:
+        try:
+            result = subprocess.run(
+                ["git", "config", "--get", key],
+                capture_output=True,
+                text=True,
+                check=True,
+            )
+            return result.stdout.strip()
+        except subprocess.CalledProcessError:
+            return ""
+
+    user_name = _read_config("user.name")
+    user_email = _read_config("user.email")
+    return user_name, user_email
+

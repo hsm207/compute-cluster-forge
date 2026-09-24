@@ -5,7 +5,6 @@ Executed inside the cloud VM during instance startup.
 Standard-library Python 3 only (zero 3rd party dependencies).
 """
 
-
 from __future__ import annotations
 
 import json
@@ -26,12 +25,14 @@ def main() -> None:
     _log("Starting Forge cloud bootstrap runner...")
 
     _install_base_toolchain()
+    _install_antigravity_cli()
     token = _fetch_github_token()
     _configure_system_auth(token)
     manifest = _fetch_workspace_manifest()
 
     if manifest:
         _provision_workspace(manifest, token)
+        _configure_git_identity(manifest)
     else:
         _log("No workspace manifest provided; skipping repository cloning.")
 
@@ -56,7 +57,9 @@ def _install_base_toolchain() -> None:
     _log("Installing base system packages...")
     os.environ["DEBIAN_FRONTEND"] = "noninteractive"
     _run_cmd(["apt-get", "update", "-y"])
-    _run_cmd(["apt-get", "install", "-y", "curl", "git", "ca-certificates", "gnupg", "jq"])
+    _run_cmd(
+        ["apt-get", "install", "-y", "curl", "git", "ca-certificates", "gnupg", "jq"]
+    )
 
     # Configure NodeSource repository for Node.js 20.x
     keyring_dir = Path("/etc/apt/keyrings")
@@ -77,6 +80,49 @@ def _install_base_toolchain() -> None:
 
     _run_cmd(["apt-get", "install", "-y", "nodejs", "gh"])
     _run_cmd(["npm", "install", "-g", "freebuff"])
+
+
+def _install_antigravity_cli() -> None:
+    """Install Google Antigravity CLI (agy) system-wide with persistent global PATH."""
+    _log("Installing Antigravity CLI (agy)...")
+    _run_shell("curl -fsSL https://antigravity.google/cli/install.sh | bash")
+    _run_shell(
+        "export HOME=/root; curl -fsSL https://antigravity.google/cli/install.sh | bash"
+    )
+
+    # If installed into root or local user bin, copy real binary to /usr/local/bin
+    possible_bins = [
+        Path("/root/.local/bin/agy"),
+        Path("/home/mohds/.local/bin/agy"),
+    ]
+    target_bin = Path("/usr/local/bin/agy")
+    for pb in possible_bins:
+        if pb.exists():
+            _run_cmd(["cp", "-f", str(pb), str(target_bin)])
+            _run_cmd(["chmod", "755", str(target_bin)])
+            _log(f"Copied {pb} to {target_bin} with 755 permissions")
+            break
+
+    # Configure system-wide PATH for login and non-login interactive shells
+    agy_profile = Path("/etc/profile.d/antigravity.sh")
+    agy_profile.write_text(
+        'export PATH="/usr/local/bin:${HOME}/.local/bin:${PATH}"\n',
+        encoding="utf-8",
+    )
+    agy_profile.chmod(0o755)
+
+    bashrc = Path("/etc/bash.bashrc")
+    with bashrc.open("a", encoding="utf-8") as handle:
+        handle.write(
+            "\n# Antigravity CLI PATH\n"
+            'if [[ ":$PATH:" != *":/usr/local/bin:"* ]]; then\n'
+            '  export PATH="/usr/local/bin:$PATH"\n'
+            "fi\n"
+            'if [[ ":$PATH:" != *":${HOME}/.local/bin:"* ]]; then\n'
+            '  export PATH="${HOME}/.local/bin:$PATH"\n'
+            "fi\n"
+        )
+    _log("Configured system-wide PATH for Antigravity CLI.")
 
 
 def _fetch_github_token() -> str:
@@ -111,8 +157,7 @@ def _configure_system_auth(token: str) -> None:
     _log("Configuring shell authentication environment...")
     profile_script = Path("/etc/profile.d/github_auth.sh")
     profile_script.write_text(
-        f'export GH_TOKEN="{token}"\n'
-        f'export GITHUB_TOKEN="{token}"\n'
+        f'export GH_TOKEN="{token}"\nexport GITHUB_TOKEN="{token}"\n'
     )
     profile_script.chmod(0o755)
 
@@ -122,7 +167,7 @@ def _configure_system_auth(token: str) -> None:
             f'\nif [ -z "${{GH_TOKEN:-}}" ]; then\n'
             f'  export GH_TOKEN="{token}"\n'
             f'  export GITHUB_TOKEN="{token}"\n'
-            f'fi\n'
+            f"fi\n"
         )
 
 
@@ -148,7 +193,9 @@ def _provision_workspace(manifest: dict, token: str) -> None:
     """Clone repositories and write remote VS Code workspace file."""
     workspace_name = manifest.get("name", "dev")
     repositories = manifest.get("repositories", [])
-    _log(f"Provisioning workspace '{workspace_name}' with {len(repositories)} repositories...")
+    _log(
+        f"Provisioning workspace '{workspace_name}' with {len(repositories)} repositories..."
+    )
 
     WORKSPACE_DIR.mkdir(parents=True, exist_ok=True)
 
@@ -168,14 +215,15 @@ def _provision_workspace(manifest: dict, token: str) -> None:
         _run_cmd(["git", "clone", authenticated_url, str(target_dir)])
 
         # Sanitize remote origin on disk so token is never stored
-        _run_cmd(["git", "-C", str(target_dir), "remote", "set-url", "origin", clone_url])
+        _run_cmd(
+            ["git", "-C", str(target_dir), "remote", "set-url", "origin", clone_url]
+        )
 
     # Write remote .code-workspace file
     remote_ws_file = WORKSPACE_DIR / f"{workspace_name}.code-workspace"
     ws_data = {
         "folders": [
-            {"name": r.get("name"), "path": f"./{r.get('name')}"}
-            for r in repositories
+            {"name": r.get("name"), "path": f"./{r.get('name')}"} for r in repositories
         ],
         "settings": {},
     }
@@ -187,7 +235,23 @@ def _build_authenticated_url(clone_url: str, token: str) -> str:
     """Inject OAuth token into HTTPS GitHub URL for authenticated cloning."""
     if not token or not clone_url.startswith("https://github.com/"):
         return clone_url
-    return clone_url.replace("https://github.com/", f"https://oauth2:{token}@github.com/")
+    return clone_url.replace(
+        "https://github.com/", f"https://oauth2:{token}@github.com/"
+    )
+
+
+def _configure_git_identity(manifest: dict) -> None:
+    """Configure system-wide Git user.name and user.email from workspace manifest."""
+    git_user_name = manifest.get("git_user_name", "")
+    git_user_email = manifest.get("git_user_email", "")
+
+    if git_user_name:
+        _log(f"Setting system git config user.name to '{git_user_name}'...")
+        _run_cmd(["git", "config", "--system", "user.name", git_user_name])
+
+    if git_user_email:
+        _log(f"Setting system git config user.email to '{git_user_email}'...")
+        _run_cmd(["git", "config", "--system", "user.email", git_user_email])
 
 
 def _configure_permissions() -> None:

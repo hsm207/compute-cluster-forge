@@ -8,7 +8,7 @@ from pathlib import Path
 import sys
 
 from forge.domain.workspace import build_workspace_manifest
-from forge.adapters.git import get_origin_url
+from forge.adapters.git import get_origin_url, get_git_author_identity
 from forge.adapters.gcloud import deploy_regional_mig, MigLaunchConfig
 
 DEFAULT_WORKSPACES_DIR = Path("C:/Users/mohds/Documents/GitHub/_workspaces")
@@ -59,7 +59,16 @@ def _handle_launch(args: argparse.Namespace) -> int:
     workspace_file = _resolve_workspace_file(args.workspace)
     print(f"[Forge] Reading workspace: {workspace_file}")
 
-    manifest = build_workspace_manifest(workspace_file, resolve_remote=get_origin_url)
+    user_name, user_email = get_git_author_identity()
+    if user_name or user_email:
+        print(f"[Forge] Resolved Git author identity: {user_name} <{user_email}>")
+
+    manifest = build_workspace_manifest(
+        workspace_file,
+        resolve_remote=get_origin_url,
+        git_user_name=user_name,
+        git_user_email=user_email,
+    )
     print(f"[Forge] Resolved {len(manifest.repositories)} member repositories:")
     for repo in manifest.repositories:
         print(f"  - {repo.name}: {repo.clone_url}")

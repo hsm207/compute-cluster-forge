@@ -23,11 +23,15 @@ class WorkspaceManifest:
 
     name: str
     repositories: tuple[RepoTarget, ...] = field(default_factory=tuple)
+    git_user_name: str = ""
+    git_user_email: str = ""
 
     def to_dict(self) -> dict:
         """Serialize the manifest to a clean JSON-compatible dictionary."""
         return {
             "name": self.name,
+            "git_user_name": self.git_user_name,
+            "git_user_email": self.git_user_email,
             "repositories": [
                 {
                     "name": repo.name,
@@ -56,12 +60,16 @@ RemoteResolver = Callable[[Path], str]
 def build_workspace_manifest(
     workspace_path: Path,
     resolve_remote: RemoteResolver,
+    git_user_name: str = "",
+    git_user_email: str = "",
 ) -> WorkspaceManifest:
     """Parse a .code-workspace file and resolve each member repo's remote URL.
 
     Args:
         workspace_path: Path to the local .code-workspace JSON file.
         resolve_remote: Injected function to lookup a repository's remote URL.
+        git_user_name: Local Git author user.name.
+        git_user_email: Local Git author user.email.
 
     Returns:
         A populated WorkspaceManifest domain entity.
@@ -76,7 +84,13 @@ def build_workspace_manifest(
         resolve_remote=resolve_remote,
     )
 
-    return WorkspaceManifest(name=workspace_name, repositories=tuple(targets))
+    return WorkspaceManifest(
+        name=workspace_name,
+        repositories=tuple(targets),
+        git_user_name=git_user_name,
+        git_user_email=git_user_email,
+    )
+
 
 
 def _extract_workspace_name(workspace_path: Path) -> str:

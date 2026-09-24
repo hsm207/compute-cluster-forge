@@ -19,10 +19,14 @@ def test_workspace_manifest_serialization() -> None:
             RepoTarget(name="repo-a", clone_url="https://github.com/org/repo-a.git", relative_path="./repo-a"),
             RepoTarget(name="repo-b", clone_url="https://github.com/org/repo-b.git", relative_path="./repo-b"),
         ),
+        git_user_name="hsm207",
+        git_user_email="hsm207@users.noreply.github.com",
     )
 
     data = manifest.to_dict()
     assert data["name"] == "test-ws"
+    assert data["git_user_name"] == "hsm207"
+    assert data["git_user_email"] == "hsm207@users.noreply.github.com"
     assert len(data["repositories"]) == 2
     assert data["repositories"][0]["name"] == "repo-a"
 
@@ -54,11 +58,19 @@ def test_build_workspace_manifest_from_file() -> None:
         def mock_resolver(repo_dir: Path) -> str:
             return mock_remotes.get(repo_dir.name, "https://github.com/unknown.git")
 
-        manifest = build_workspace_manifest(ws_file, resolve_remote=mock_resolver)
+        manifest = build_workspace_manifest(
+            ws_file,
+            resolve_remote=mock_resolver,
+            git_user_name="test-user",
+            git_user_email="test@example.com",
+        )
 
         assert manifest.name == "sample"
+        assert manifest.git_user_name == "test-user"
+        assert manifest.git_user_email == "test@example.com"
         assert len(manifest.repositories) == 2
         assert manifest.repositories[0].name == "custom-name-a"
         assert manifest.repositories[0].clone_url == "https://github.com/example/folder-a.git"
         assert manifest.repositories[1].name == "folder-b"
         assert manifest.repositories[1].clone_url == "https://github.com/example/folder-b.git"
+
