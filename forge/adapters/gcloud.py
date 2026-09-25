@@ -119,6 +119,125 @@ def _update_or_create_mig(config: MigLaunchConfig, template_name: str) -> None:
         _execute_gcloud(create_cmd, "Failed to create Managed Instance Group")
 
 
+def teardown_regional_mig(
+    mig_name: str,
+    region: str,
+    project: str,
+    delete_templates: bool = True,
+) -> list[str]:
+    """Delete the Regional MIG and optionally its associated instance templates."""
+    gcloud = _get_gcloud_binary()
+
+    # Find templates used by this MIG before deletion
+    templates_to_delete: list[str] = []
+    if delete_templates:
+        describe_proc = subprocess.run(
+            [
+                gcloud, "compute", "instance-groups", "managed", "describe", mig_name,
+                "--region", region,
+                "--project", project,
+                "--format", "value(instanceTemplate,versions[].instanceTemplate)",
+            ],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        if describe_proc.returncode == 0 and describe_proc.stdout.strip():
+            raw_templates = describe_proc.stdout.split()
+            for t in raw_templates:
+                name = t.strip().rstrip(";,").split("/")[-1]
+                if name and name not in templates_to_delete:
+                    templates_to_delete.append(name)
+
+    # Delete the MIG
+    delete_mig_cmd = [
+        gcloud, "compute", "instance-groups", "managed", "delete", mig_name,
+        "--region", region,
+        "--project", project,
+        "--quiet",
+    ]
+    _execute_gcloud(delete_mig_cmd, f"Failed to delete Managed Instance Group {mig_name} in {region}")
+
+    # Delete identified templates
+    if templates_to_delete:
+        delete_instance_templates(templates_to_delete, project=project)
+
+    return templates_to_delete
+
+
+def list_dev_migs(
+    mig_name: str = "dev-box-mig",
+    project: str = "compute-cluster-492317",
+) -> list[dict[str, str]]:
+    """List all managed instance groups matching mig_name across all regions."""
+    gcloud = _get_gcloud_binary()
+    proc = subprocess.run(
+        [
+            gcloud, "compute", "instance-groups", "managed", "list",
+            "--filter", f"name={mig_name}",
+            "--project", project,
+            "--format", "csv[no-heading](name,location,size)",
+        ],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    if proc.returncode != 0 or not proc.stdout.strip():
+        return []
+
+    results: list[dict[str, str]] = []
+    for line in proc.stdout.strip().splitlines():
+        parts = [p.strip() for p in line.split(",")]
+        if len(parts) >= 3:
+            results.append({"name": parts[0], "region": parts[1], "size": parts[2]})
+        elif len(parts) == 2:
+            results.append({"name": parts[0], "region": parts[1], "size": "0"})
+    return results
+
+
+def delete_instance_templates(
+    template_names: list[str],
+    project: str = "compute-cluster-492317",
+) -> None:
+    """Delete specified instance templates in GCP."""
+    if not template_names:
+        return
+    gcloud = _get_gcloud_binary()
+    delete_cmd = [
+        gcloud, "compute", "instance-templates", "delete",
+        *template_names,
+        "--project", project,
+        "--quiet",
+    ]
+    _execute_gcloud(delete_cmd, "Failed to delete instance templates")
+
+
+def delete_all_dev_spot_templates(
+    template_prefix: str = "dev-spot-template",
+    project: str = "compute-cluster-492317",
+) -> list[str]:
+    """Find and delete all instance templates starting with template_prefix."""
+    gcloud = _get_gcloud_binary()
+    proc = subprocess.run(
+        [
+            gcloud, "compute", "instance-templates", "list",
+            "--filter", f"name ~ ^{template_prefix}",
+            "--project", project,
+            "--format", "value(name)",
+        ],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    if proc.returncode != 0 or not proc.stdout.strip():
+        return []
+
+    names = [n.strip() for n in proc.stdout.split() if n.strip()]
+    if names:
+        delete_instance_templates(names, project=project)
+    return names
+
+
 def _execute_gcloud(cmd: list[str], error_prefix: str) -> None:
     """Execute a gcloud command, raising a clean GCloudAdapterError on failure."""
     try:
@@ -126,3 +245,4 @@ def _execute_gcloud(cmd: list[str], error_prefix: str) -> None:
     except subprocess.CalledProcessError as exc:
         msg = exc.stderr.strip() if exc.stderr else exc.stdout.strip()
         raise GCloudAdapterError(f"{error_prefix}: {msg}") from exc
+

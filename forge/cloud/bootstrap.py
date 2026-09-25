@@ -85,7 +85,6 @@ def _install_base_toolchain() -> None:
 def _install_antigravity_cli() -> None:
     """Install Google Antigravity CLI (agy) system-wide with persistent global PATH."""
     _log("Installing Antigravity CLI (agy)...")
-    _run_shell("curl -fsSL https://antigravity.google/cli/install.sh | bash")
     _run_shell(
         "export HOME=/root; curl -fsSL https://antigravity.google/cli/install.sh | bash"
     )

@@ -6,8 +6,10 @@
 - **ALWAYS use the modular Python CLI (`forge`)** to launch and manage ephemeral dev machines on GCP:
   ```powershell
   python -m forge launch <workspace>
+  # To destroy active clusters and clean up templates:
+  python -m forge teardown --all
   ```
-  *(e.g., `python -m forge launch freebuff`)*.
+  *(e.g., `python -m forge launch freebuff` or `python -m forge teardown`)*.
 - Refer to [`docs/guides/dev_spot_machine_guide.md`](docs/guides/dev_spot_machine_guide.md) for full runbook details, preemption mechanics, and recovery procedures.
 
 ## 2. SSH over Google IAP on Windows: The Stdin Rule
