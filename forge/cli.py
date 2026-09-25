@@ -9,6 +9,7 @@ import sys
 
 from forge.domain.workspace import build_workspace_manifest
 from forge.adapters.git import get_origin_url, get_git_author_identity
+from forge.adapters.gcloud import deploy_regional_mig, MigLaunchConfig
 from forge.adapters.gcloud import (
     deploy_regional_mig,
     MigLaunchConfig,
@@ -75,11 +76,6 @@ def _create_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Teardown all dev-box clusters and purge all leftover dev-spot templates.",
     )
-    teardown_parser.add_argument(
-        "--keep-templates",
-        action="store_true",
-        help="Do not delete associated instance templates during teardown.",
-    )
     return parser
 
 
@@ -132,15 +128,13 @@ def _handle_launch(args: argparse.Namespace) -> int:
 
 def _handle_teardown(args: argparse.Namespace) -> int:
     """Tear down active dev clusters, MIGs, and templates."""
-    delete_templates = not args.keep_templates
-
     if args.region:
         print(f"[Forge] Tearing down dev-box-mig in region {args.region}...")
         deleted_templates = teardown_regional_mig(
             mig_name="dev-box-mig",
             region=args.region,
             project=DEFAULT_PROJECT,
-            delete_templates=delete_templates,
+            delete_templates=True,
         )
         print(f"[Forge] Destroyed dev-box-mig in {args.region}.")
         if deleted_templates:
@@ -160,13 +154,13 @@ def _handle_teardown(args: argparse.Namespace) -> int:
                 mig_name=mig["name"],
                 region=r,
                 project=DEFAULT_PROJECT,
-                delete_templates=delete_templates,
+                delete_templates=True,
             )
             print(f"[Forge] Destroyed {mig['name']} in {r}.")
             if deleted_templates:
                 print(f"[Forge] Purged {len(deleted_templates)} associated template(s): {', '.join(deleted_templates)}")
 
-    if args.all and delete_templates:
+    if args.all:
         print("[Forge] Purging any leftover dev-spot instance templates...")
         purged = delete_all_dev_spot_templates(project=DEFAULT_PROJECT)
         if purged:
