@@ -48,7 +48,7 @@ def test_install_antigravity_cli_invokes_installer_and_configures_path(
         bootstrap._install_antigravity_cli()
 
         mock_shell.assert_called_once_with(
-            "export HOME=/root; curl -fsSL https://antigravity.google/cli/install.sh | bash"
+            "export HOME=/root; curl -fsSL --compressed https://antigravity.google/cli/install.sh | bash"
         )
         assert fake_profile_file.exists()
         assert (

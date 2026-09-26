@@ -86,7 +86,7 @@ def _install_antigravity_cli() -> None:
     """Install Google Antigravity CLI (agy) system-wide with persistent global PATH."""
     _log("Installing Antigravity CLI (agy)...")
     _run_shell(
-        "export HOME=/root; curl -fsSL https://antigravity.google/cli/install.sh | bash"
+        "export HOME=/root; curl -fsSL --compressed https://antigravity.google/cli/install.sh | bash"
     )
 
     # If installed into root or local user bin, copy real binary to /usr/local/bin
