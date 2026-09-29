@@ -50,18 +50,33 @@ def _create_versioned_template(config: MigLaunchConfig) -> str:
     versioned_name = f"{config.template_name}-{timestamp}"
 
     cmd = [
-        gcloud, "compute", "instance-templates", "create", versioned_name,
-        "--project", config.project,
-        "--region", config.region,
-        "--machine-type", config.machine_type,
-        "--provisioning-model", "SPOT",
-        "--instance-termination-action", "STOP",
-        "--labels", "project=dev-spot-box,environment=dev",
-        "--scopes", "https://www.googleapis.com/auth/cloud-platform",
-        "--image-family", "debian-12",
-        "--image-project", "debian-cloud",
-        "--boot-disk-size", "10GB",
-        "--boot-disk-type", "pd-standard",
+        gcloud,
+        "compute",
+        "instance-templates",
+        "create",
+        versioned_name,
+        "--project",
+        config.project,
+        "--region",
+        config.region,
+        "--machine-type",
+        config.machine_type,
+        "--provisioning-model",
+        "SPOT",
+        "--instance-termination-action",
+        "STOP",
+        "--labels",
+        "project=dev-spot-box,environment=dev",
+        "--scopes",
+        "https://www.googleapis.com/auth/cloud-platform",
+        "--image-family",
+        "debian-12",
+        "--image-project",
+        "debian-cloud",
+        "--boot-disk-size",
+        "10GB",
+        "--boot-disk-type",
+        "pd-standard",
         "--boot-disk-auto-delete",
         f"--metadata-from-file=startup-script={config.bootstrap_script},shutdown-script={config.backup_script},workspace-manifest={config.manifest_path}",
     ]
@@ -76,10 +91,18 @@ def _update_or_create_mig(config: MigLaunchConfig, template_name: str) -> None:
 
     check_proc = subprocess.run(
         [
-            gcloud, "compute", "instance-groups", "managed", "describe", config.mig_name,
-            "--region", config.region,
-            "--project", config.project,
-            "--format", "value(name)",
+            gcloud,
+            "compute",
+            "instance-groups",
+            "managed",
+            "describe",
+            config.mig_name,
+            "--region",
+            config.region,
+            "--project",
+            config.project,
+            "--format",
+            "value(name)",
         ],
         capture_output=True,
         text=True,
@@ -89,32 +112,61 @@ def _update_or_create_mig(config: MigLaunchConfig, template_name: str) -> None:
     if check_proc.returncode == 0 and check_proc.stdout.strip() == config.mig_name:
         # Set new template on existing MIG and trigger rollout replacement
         set_template_cmd = [
-            gcloud, "compute", "instance-groups", "managed", "set-instance-template", config.mig_name,
-            "--template", template_name,
-            "--region", config.region,
-            "--project", config.project,
+            gcloud,
+            "compute",
+            "instance-groups",
+            "managed",
+            "set-instance-template",
+            config.mig_name,
+            "--template",
+            template_name,
+            "--region",
+            config.region,
+            "--project",
+            config.project,
         ]
         _execute_gcloud(set_template_cmd, "Failed to update MIG instance template")
 
         # In regional MIGs with 3 zones, fixed max-surge must be at least equal to zone count (3)
         replace_cmd = [
-            gcloud, "compute", "instance-groups", "managed", "rolling-action", "replace", config.mig_name,
-            "--region", config.region,
-            "--project", config.project,
-            "--max-surge", "3",
-            "--max-unavailable", "0",
+            gcloud,
+            "compute",
+            "instance-groups",
+            "managed",
+            "rolling-action",
+            "replace",
+            config.mig_name,
+            "--region",
+            config.region,
+            "--project",
+            config.project,
+            "--max-surge",
+            "3",
+            "--max-unavailable",
+            "0",
         ]
         _execute_gcloud(replace_cmd, "Failed to rolling-replace instances in MIG")
     else:
         # Create fresh MIG
         create_cmd = [
-            gcloud, "compute", "instance-groups", "managed", "create", config.mig_name,
-            "--project", config.project,
-            "--region", config.region,
-            "--template", template_name,
-            "--size", "1",
-            "--base-instance-name", "dev-box",
-            "--target-distribution-shape", "ANY",
+            gcloud,
+            "compute",
+            "instance-groups",
+            "managed",
+            "create",
+            config.mig_name,
+            "--project",
+            config.project,
+            "--region",
+            config.region,
+            "--template",
+            template_name,
+            "--size",
+            "1",
+            "--base-instance-name",
+            "dev-box",
+            "--target-distribution-shape",
+            "ANY",
         ]
         _execute_gcloud(create_cmd, "Failed to create Managed Instance Group")
 
@@ -133,10 +185,18 @@ def teardown_regional_mig(
     if delete_templates:
         describe_proc = subprocess.run(
             [
-                gcloud, "compute", "instance-groups", "managed", "describe", mig_name,
-                "--region", region,
-                "--project", project,
-                "--format", "value(instanceTemplate,versions[].instanceTemplate)",
+                gcloud,
+                "compute",
+                "instance-groups",
+                "managed",
+                "describe",
+                mig_name,
+                "--region",
+                region,
+                "--project",
+                project,
+                "--format",
+                "value(instanceTemplate,versions[].instanceTemplate)",
             ],
             capture_output=True,
             text=True,
@@ -151,12 +211,22 @@ def teardown_regional_mig(
 
     # Delete the MIG
     delete_mig_cmd = [
-        gcloud, "compute", "instance-groups", "managed", "delete", mig_name,
-        "--region", region,
-        "--project", project,
+        gcloud,
+        "compute",
+        "instance-groups",
+        "managed",
+        "delete",
+        mig_name,
+        "--region",
+        region,
+        "--project",
+        project,
         "--quiet",
     ]
-    _execute_gcloud(delete_mig_cmd, f"Failed to delete Managed Instance Group {mig_name} in {region}")
+    _execute_gcloud(
+        delete_mig_cmd,
+        f"Failed to delete Managed Instance Group {mig_name} in {region}",
+    )
 
     # Delete identified templates
     if templates_to_delete:
@@ -173,10 +243,17 @@ def list_dev_migs(
     gcloud = _get_gcloud_binary()
     proc = subprocess.run(
         [
-            gcloud, "compute", "instance-groups", "managed", "list",
-            "--filter", f"name={mig_name}",
-            "--project", project,
-            "--format", "csv[no-heading](name,location,size)",
+            gcloud,
+            "compute",
+            "instance-groups",
+            "managed",
+            "list",
+            "--filter",
+            f"name={mig_name}",
+            "--project",
+            project,
+            "--format",
+            "csv[no-heading](name,location,size)",
         ],
         capture_output=True,
         text=True,
@@ -204,9 +281,13 @@ def delete_instance_templates(
         return
     gcloud = _get_gcloud_binary()
     delete_cmd = [
-        gcloud, "compute", "instance-templates", "delete",
+        gcloud,
+        "compute",
+        "instance-templates",
+        "delete",
         *template_names,
-        "--project", project,
+        "--project",
+        project,
         "--quiet",
     ]
     _execute_gcloud(delete_cmd, "Failed to delete instance templates")
@@ -220,10 +301,16 @@ def delete_all_dev_spot_templates(
     gcloud = _get_gcloud_binary()
     proc = subprocess.run(
         [
-            gcloud, "compute", "instance-templates", "list",
-            "--filter", f"name ~ ^{template_prefix}",
-            "--project", project,
-            "--format", "value(name)",
+            gcloud,
+            "compute",
+            "instance-templates",
+            "list",
+            "--filter",
+            f"name ~ ^{template_prefix}",
+            "--project",
+            project,
+            "--format",
+            "value(name)",
         ],
         capture_output=True,
         text=True,
@@ -245,4 +332,3 @@ def _execute_gcloud(cmd: list[str], error_prefix: str) -> None:
     except subprocess.CalledProcessError as exc:
         msg = exc.stderr.strip() if exc.stderr else exc.stdout.strip()
         raise GCloudAdapterError(f"{error_prefix}: {msg}") from exc
-

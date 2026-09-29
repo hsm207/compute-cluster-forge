@@ -9,6 +9,7 @@
   # To destroy active clusters and clean up templates:
   python -m forge teardown --all
   ```
+  *(e.g., `python -m forge launch freebuff`)*.
   *(e.g., `python -m forge launch freebuff` or `python -m forge teardown`)*.
 - Refer to [`docs/guides/dev_spot_machine_guide.md`](docs/guides/dev_spot_machine_guide.md) for full runbook details, preemption mechanics, and recovery procedures.
 

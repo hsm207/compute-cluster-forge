@@ -45,7 +45,9 @@ def _create_parser() -> argparse.ArgumentParser:
     )
     subparsers = parser.add_subparsers(dest="command", required=True)
 
-    launch_parser = subparsers.add_parser("launch", help="Launch a multi-repo VS Code workspace on GCP.")
+    launch_parser = subparsers.add_parser(
+        "launch", help="Launch a multi-repo VS Code workspace on GCP."
+    )
     launch_parser.add_argument(
         "workspace",
         help="Name of the workspace (e.g. 'freebuff') or full path to .code-workspace file.",
@@ -138,7 +140,9 @@ def _handle_teardown(args: argparse.Namespace) -> int:
         )
         print(f"[Forge] Destroyed dev-box-mig in {args.region}.")
         if deleted_templates:
-            print(f"[Forge] Purged {len(deleted_templates)} associated template(s): {', '.join(deleted_templates)}")
+            print(
+                f"[Forge] Purged {len(deleted_templates)} associated template(s): {', '.join(deleted_templates)}"
+            )
         return 0
 
     print("[Forge] Discovering active dev-box clusters across all regions...")
@@ -149,7 +153,9 @@ def _handle_teardown(args: argparse.Namespace) -> int:
     else:
         for mig in migs:
             r = mig["region"]
-            print(f"[Forge] Tearing down {mig['name']} in region {r} (current size: {mig.get('size', 'unknown')})...")
+            print(
+                f"[Forge] Tearing down {mig['name']} in region {r} (current size: {mig.get('size', 'unknown')})..."
+            )
             deleted_templates = teardown_regional_mig(
                 mig_name=mig["name"],
                 region=r,
@@ -158,13 +164,17 @@ def _handle_teardown(args: argparse.Namespace) -> int:
             )
             print(f"[Forge] Destroyed {mig['name']} in {r}.")
             if deleted_templates:
-                print(f"[Forge] Purged {len(deleted_templates)} associated template(s): {', '.join(deleted_templates)}")
+                print(
+                    f"[Forge] Purged {len(deleted_templates)} associated template(s): {', '.join(deleted_templates)}"
+                )
 
     if args.all:
         print("[Forge] Purging any leftover dev-spot instance templates...")
         purged = delete_all_dev_spot_templates(project=DEFAULT_PROJECT)
         if purged:
-            print(f"[Forge] Cleaned up {len(purged)} leftover template(s): {', '.join(purged)}")
+            print(
+                f"[Forge] Cleaned up {len(purged)} leftover template(s): {', '.join(purged)}"
+            )
 
     print("[Forge] Teardown complete. All compute clusters destroyed.")
     return 0
@@ -185,7 +195,9 @@ def _resolve_workspace_file(name_or_path: str) -> Path:
     if named_file_raw.exists():
         return named_file_raw.resolve()
 
-    raise FileNotFoundError(f"Could not find workspace file for '{name_or_path}' in {DEFAULT_WORKSPACES_DIR}")
+    raise FileNotFoundError(
+        f"Could not find workspace file for '{name_or_path}' in {DEFAULT_WORKSPACES_DIR}"
+    )
 
 
 if __name__ == "__main__":
