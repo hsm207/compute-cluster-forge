@@ -78,7 +78,7 @@ def _install_base_toolchain() -> None:
         )
         _run_cmd(["apt-get", "update", "-y"])
 
-    _run_cmd(["apt-get", "install", "-y", "nodejs", "gh"])
+    _run_cmd(["apt-get", "install", "-y", "nodejs", "gh", "tmux"])
     _run_cmd(["npm", "install", "-g", "freebuff"])
 
 
