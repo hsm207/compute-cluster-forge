@@ -253,7 +253,7 @@ def list_dev_migs(
             "--project",
             project,
             "--format",
-            "csv[no-heading](name,location,size)",
+            "csv[no-heading](name,region.basename(),size)",
         ],
         capture_output=True,
         text=True,

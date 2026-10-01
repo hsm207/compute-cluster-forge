@@ -18,9 +18,9 @@ LOG_PATH = Path("/var/log/forge-backup.log")
 
 
 def main() -> None:
-    """Scan repositories and perform preemption backup sequence."""
+    """Scan repositories and push backup branches for dirty working trees."""
     _setup_logging()
-    _log("Preemption shutdown hook triggered. Scanning repositories for work to preserve...")
+    _log("Preemption shutdown hook triggered. Scanning repositories for uncommitted work...")
 
     token = _fetch_github_token()
     git_repos = _find_git_repositories(SCAN_ROOTS)
@@ -34,14 +34,7 @@ def main() -> None:
 
     for repo_dir in git_repos:
         if _is_dirty(repo_dir):
-            # Case 1: Uncommitted changes present (with or without unpushed commits)
-            _backup_dirty_repo(repo_dir, backup_branch, token)
-        elif _has_unpushed_commits(repo_dir):
-            # Case 2: Clean working tree, but unpushed commits present
-            _push_current_branch(repo_dir, token)
-        else:
-            # Case 3: Completely clean and fully pushed
-            _log(f"Repository {repo_dir.name} is clean and fully pushed to remote. Nothing to back up.")
+            _backup_repo(repo_dir, backup_branch, token)
 
     _log("Shutdown backup sequence completed.")
 
@@ -62,6 +55,7 @@ def _setup_logging() -> None:
         LOG_PATH.parent.mkdir(parents=True, exist_ok=True)
     except OSError:
         pass
+
 
 
 def _find_git_repositories(roots: tuple[Path, ...]) -> list[Path]:
@@ -87,55 +81,9 @@ def _is_dirty(repo_dir: Path) -> bool:
     return bool(proc.stdout.strip())
 
 
-def _has_unpushed_commits(repo_dir: Path) -> bool:
-    """Check if repository has local commits that are not present on remote."""
-    # 1. If upstream branch is configured, check if HEAD is ahead of @{u}
-    proc = subprocess.run(
-        ["git", "-C", str(repo_dir), "rev-list", "@{u}..HEAD", "--count"],
-        capture_output=True,
-        text=True,
-        check=False,
-    )
-    if proc.returncode == 0:
-        count = proc.stdout.strip()
-        return count.isdigit() and int(count) > 0
-
-    # 2. If no upstream is configured, check if any commit on HEAD is not in origin/main
-    proc_no_upstream = subprocess.run(
-        ["git", "-C", str(repo_dir), "rev-list", "origin/main..HEAD", "--count"],
-        capture_output=True,
-        text=True,
-        check=False,
-    )
-    if proc_no_upstream.returncode == 0:
-        count = proc_no_upstream.stdout.strip()
-        return count.isdigit() and int(count) > 0
-
-    # 3. Fallback: check if any commits exist on the current branch
-    proc_log = subprocess.run(
-        ["git", "-C", str(repo_dir), "log", "-1", "--format=%H"],
-        capture_output=True,
-        text=True,
-        check=False,
-    )
-    return bool(proc_log.stdout.strip())
-
-
-def _get_current_branch(repo_dir: Path) -> str:
-    """Get active branch name, falling back to 'main' if detached HEAD."""
-    proc = subprocess.run(
-        ["git", "-C", str(repo_dir), "branch", "--show-current"],
-        capture_output=True,
-        text=True,
-        check=False,
-    )
-    branch = proc.stdout.strip()
-    return branch or "main"
-
-
-def _backup_dirty_repo(repo_dir: Path, branch_name: str, token: str) -> None:
-    """Case 1: Commit dirty state and push to the backup branch."""
-    _log(f"Case 1 (Uncommitted changes): Backing up dirty repository: {repo_dir.name} -> branch {branch_name}")
+def _backup_repo(repo_dir: Path, branch_name: str, token: str) -> None:
+    """Commit dirty state and push to the backup branch."""
+    _log(f"Backing up dirty repository: {repo_dir.name} -> branch {branch_name}")
 
     # Set user info if not configured
     subprocess.run(["git", "-C", str(repo_dir), "config", "user.name", "Forge Auto Backup"], check=False)
@@ -165,27 +113,6 @@ def _backup_dirty_repo(repo_dir: Path, branch_name: str, token: str) -> None:
         _log(f"Successfully pushed backup branch: {branch_name}")
     else:
         _log(f"Push failed for {repo_dir.name}: {proc.stderr.strip()}")
-
-
-def _push_current_branch(repo_dir: Path, token: str) -> None:
-    """Case 2: Push clean local commits directly to the active remote branch."""
-    current_branch = _get_current_branch(repo_dir)
-    _log(f"Case 2 (Unpushed commits): Pushing clean committed branch '{current_branch}' for {repo_dir.name}...")
-
-    remote_url = _get_remote_url(repo_dir)
-    push_url = _build_authenticated_url(remote_url, token)
-
-    proc = subprocess.run(
-        ["git", "-C", str(repo_dir), "push", "-u", push_url, current_branch],
-        capture_output=True,
-        text=True,
-        check=False,
-    )
-
-    if proc.returncode == 0:
-        _log(f"Successfully pushed unpushed commits on branch '{current_branch}' to remote.")
-    else:
-        _log(f"Failed to push branch '{current_branch}' for {repo_dir.name}: {proc.stderr.strip()}")
 
 
 def _get_remote_url(repo_dir: Path) -> str:
